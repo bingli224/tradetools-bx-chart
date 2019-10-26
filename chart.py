@@ -7,12 +7,16 @@
 ## save the cache to local json file,
 ## show in the chart with EMAs and volume.
 ##
+## 15:03 THA 12/08/2019
+##
+## Fix: RSI calculation and UI
 ##
 ################################################################################
 ## References:
 ##		canvas resize
 ##	https://stackoverflow.com/questions/22835289/how-to-get-tkinter-canvas-to-dynamically-resize-to-window-width
-##
+##		RSI calculation
+##	http://cns.bu.edu/~gsc/CN710/fincast/Technical%20_indicators/Relative%20Strength%20Index%20(RSI).htm
 
 import urllib.request
 import datetime
@@ -164,7 +168,7 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 
 	#global w_last, h_last
 
-	w_last = int ( c.cget( 'width' ) )
+	w_last = int ( c.cget( 'width' ) ) - 100
 	h_last = int ( c.cget( 'height' ) )
 
 	#print ( 'bef {:d} vs {:d}\t{:d} vs {:d}'.format ( w_last, root.winfo_width ( ), h_last, root.winfo_height ( ) ) )
@@ -200,6 +204,7 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 	## get highest and lowest price
 	low = min ( candlesticks, key=itemgetter ('low') ) [ 'low' ]
 	high = max ( candlesticks, key=itemgetter ('high') ) [ 'high' ]
+	h_candlestick = high - low
 
 	## get highest vol
 	max_vol = max ( candlesticks, key=itemgetter ('volume') ) ['volume']
@@ -214,6 +219,52 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 	rsi_last = None
 	rsi_period = 14
 
+	c.create_line (
+		0,
+		h_last * .7,
+		w_last,
+		h_last * .7,
+		tags = ( 'rsi' ),
+		fill='#333',
+		width=1
+	)
+	c.create_line (
+		0,
+		h_last * .6,
+		w_last,
+		h_last * .6,
+		tags = ( 'rsi' ),
+		fill='#fff',
+		width=1
+	)
+	c.create_line (
+		0,
+		h_last * .8,
+		w_last,
+		h_last * .8,
+		tags = ( 'rsi' ),
+		fill='#fff',
+		width=1
+	)
+	c.create_line (
+		0,
+		h_last * .76,
+		w_last,
+		h_last * .76,
+		tags = ( 'rsi' ),
+		fill='#606',
+		width=1
+	)
+	c.create_line (
+		0,
+		h_last * .64,
+		w_last,
+		h_last * .64,
+		tags = ( 'rsi' ),
+		fill='#606',
+		width=1
+	)
+
 	for idx in range ( n_candlesticks ) :
 		## for each candlesticks..
 
@@ -223,10 +274,10 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 		print (
 				'{:f}\t{:f}\t{:f}\t{:f}'.format (
 				candlesticks [ idx ] [ 'low' ],
-				( candlesticks [ idx ] [ 'low' ] - low ) / ( high - low ),
-				( candlesticks [ idx ] [ 'low' ] - low ) / ( high - low ) * h_last,
-				( -candlesticks [ idx ] [ 'low' ] + high ) / ( high - low ) * h_last,
-				#( candlesticks [ idx ] [ 'high' ] - low ) / ( high - low ) * 500,
+				( candlesticks [ idx ] [ 'low' ] - low ) / h_candlestick,
+				( candlesticks [ idx ] [ 'low' ] - low ) / h_candlestick * h_last,
+				( -candlesticks [ idx ] [ 'low' ] + high ) / h_candlestick * h_last,
+				#( candlesticks [ idx ] [ 'high' ] - low ) / h_candlestick * 500,
 			)
 		)
 		"""
@@ -243,19 +294,35 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 		)
 
 		## RSI
-		if idx < rsi_period and idx > 0 :
+		if idx < rsi_period :
+			continue
+		if idx < rsi_period :
 			if candlesticks [ idx ] [ 'close' ] > candlesticks [ idx - 1 ] [ 'close' ] :
 				rsi_gain += ( candlesticks [ idx ] [ 'close' ] - candlesticks [ idx - 1 ] [ 'close' ] ) / rsi_period
 			elif candlesticks [ idx ] [ 'close' ] < candlesticks [ idx - 1 ] [ 'close' ] :
 				rsi_loss += ( candlesticks [ idx - 1 ] [ 'close' ] - candlesticks [ idx ] [ 'close' ] ) / rsi_period
 		else :
-			rsi_gain = ( rsi_gain * ( rsi_period - 1 ) + abs ( candlesticks [ idx - 1 ] [ 'close' ] - candlesticks [ idx ] [ 'close' ] ) ) / rsi_period
-			rsi_loss = ( rsi_loss * ( rsi_period - 1 ) + abs ( candlesticks [ idx - 1 ] [ 'close' ] - candlesticks [ idx ] [ 'close' ] ) ) / rsi_period
+			if idx <= rsi_period :
+				if candlesticks [ idx ] [ 'close' ] > candlesticks [ idx - 1 ] [ 'close' ] :
+					rsi_gain += ( candlesticks [ idx ] [ 'close' ] - candlesticks [ idx - 1 ] [ 'close' ] ) / rsi_period
+				elif candlesticks [ idx ] [ 'close' ] < candlesticks [ idx - 1 ] [ 'close' ] :
+					rsi_loss += ( candlesticks [ idx - 1 ] [ 'close' ] - candlesticks [ idx ] [ 'close' ] ) / rsi_period
+			else :
+				diff = candlesticks [ idx ] [ 'close' ] - candlesticks [ idx - 1 ] [ 'close' ]
+				if diff < 0 :
+					rsi_gain *= ( rsi_period - 1 ) / rsi_period
+					rsi_loss = ( rsi_loss * ( rsi_period - 1 ) - diff ) / rsi_period
+				elif diff > 0 :
+					rsi_gain = ( rsi_gain * ( rsi_period - 1 ) + diff ) / rsi_period
+					rsi_loss *= ( rsi_period - 1 ) / rsi_period
+				else :
+					rsi_gain *= ( rsi_period - 1 ) / rsi_period
+					rsi_loss *= ( rsi_period - 1 ) / rsi_period
 
 			if rsi_loss <= 0 :
 				rsi_new = 0
 			else :
-				rsi_new = 1 - 1 / ( rsi_gain / rsi_loss + 1 )
+				rsi_new = 1 - 1.0 / ( rsi_gain / rsi_loss + 1 )
 
 			if rsi_last is not None :
 				c.create_line (
@@ -263,9 +330,8 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 					h_last * .8 - rsi_last * h_last * .2,
 					idx * w_candlestick,
 					h_last * .8 - rsi_new * h_last * .2,
-					#h_last * .8 - ( 1 - 1 / ( 1 + rsi_gain / rsi_loss ) ) * h_last * .2,
 					tags = ( 'rsi' ),
-					fill='#0000cc',
+					fill='#eecc00',
 					width=1
 				)
 
@@ -279,12 +345,13 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 			clr = '#cc3333'
 
 		## EMAs
+		h_price_chart = ( int ( c.cget( 'height' ) ) - 80 ) * .6
 		if idx > 0 :
 			c.create_line (
 				( idx - 1 ) * w_candlestick,
-				( .10 + ( -candlesticks [ idx-1 ] [ 'EMA5' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx-1 ] [ 'EMA5' ] + high ) / h_candlestick * h_price_chart,
 				idx * w_candlestick,
-				( .10 + ( -candlesticks [ idx ] [ 'EMA5' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx ] [ 'EMA5' ] + high ) / h_candlestick * h_price_chart,
 				tags=( 'ema', 'ema5' ),
 				fill='#cc00cc',
 				width=1,
@@ -292,9 +359,9 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 			)
 			c.create_line (
 				( idx - 1 ) * w_candlestick,
-				( .10 + ( -candlesticks [ idx-1 ] [ 'EMA10' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx-1 ] [ 'EMA10' ] + high ) / h_candlestick * h_price_chart,
 				idx * w_candlestick,
-				( .10 + ( -candlesticks [ idx ] [ 'EMA10' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx ] [ 'EMA10' ] + high ) / h_candlestick * h_price_chart,
 				tags=( 'ema', 'ema10' ),
 				fill='#aa00aa',
 				width=1,
@@ -302,9 +369,9 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 			)
 			c.create_line (
 				( idx - 1 ) * w_candlestick,
-				( .10 + ( -candlesticks [ idx-1 ] [ 'EMA25' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx-1 ] [ 'EMA25' ] + high ) / h_candlestick * h_price_chart,
 				idx * w_candlestick,
-				( .10 + ( -candlesticks [ idx ] [ 'EMA25' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx ] [ 'EMA25' ] + high ) / h_candlestick * h_price_chart,
 				tags=( 'ema', 'ema25' ),
 				fill='#880088',
 				width=1,
@@ -312,9 +379,9 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 			)
 			c.create_line (
 				( idx - 1 ) * w_candlestick,
-				( .10 + ( -candlesticks [ idx-1 ] [ 'EMA75' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx-1 ] [ 'EMA75' ] + high ) / h_candlestick * h_price_chart,
 				idx * w_candlestick,
-				( .10 + ( -candlesticks [ idx ] [ 'EMA75' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx ] [ 'EMA75' ] + high ) / h_candlestick * h_price_chart,
 				tags=( 'ema', 'ema75' ),
 				fill='#660066',
 				width=2,
@@ -322,9 +389,9 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 			)
 			c.create_line (
 				( idx - 1 ) * w_candlestick,
-				( .10 + ( -candlesticks [ idx-1 ] [ 'EMA200' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx-1 ] [ 'EMA200' ] + high ) / h_candlestick * h_price_chart,
 				idx * w_candlestick,
-				( .10 + ( -candlesticks [ idx ] [ 'EMA200' ] + high ) / ( high - low ) * .60 ) * h_last,
+				40 + ( -candlesticks [ idx ] [ 'EMA200' ] + high ) / h_candlestick * h_price_chart,
 				tags=( 'ema', 'ema200' ),
 				fill='#330033',
 				width=2,
@@ -334,9 +401,9 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 		## shadow
 		c.create_line (
 			idx * w_candlestick,
-			( .10 + ( -candlesticks [ idx ] [ 'low' ] + high ) / ( high - low ) * .60 ) * h_last,
+			40 + ( -candlesticks [ idx ] [ 'low' ] + high ) / h_candlestick * h_price_chart,
 			idx * w_candlestick,
-			( .10 + ( -candlesticks [ idx ] [ 'high' ] + high ) / ( high - low ) * .60 ) * h_last,
+			40 + ( -candlesticks [ idx ] [ 'high' ] + high ) / h_candlestick * h_price_chart,
 			tags='candlestick',
 			fill=clr,
 			width=1
@@ -346,22 +413,14 @@ def draw_chart ( candlesticks, n_candlesticks = 0, offset = -200, e = None ) :
 		c.create_line (
 			#idx * w_candlestick - w_candlestick / 2,
 			idx * w_candlestick,
-			( .10 + ( -candlesticks [ idx ] [ 'open' ] + high ) / ( high - low ) * .60 ) * h_last,
+			40 + ( -candlesticks [ idx ] [ 'open' ] + high ) / h_candlestick * h_price_chart,
 			#idx * w_candlestick - w_candlestick / 2,
 			idx * w_candlestick,
-			( .10 + ( -candlesticks [ idx ] [ 'close' ] + high ) / ( high - low ) * .60 ) * h_last,
+			40 + ( -candlesticks [ idx ] [ 'close' ] + high ) / h_candlestick * h_price_chart,
 			tags='candlestick',
 			fill=clr,
 			width=3
 		)
-
-	#print ( 'after {:d} vs {:d}\t{:d} vs {:d}'.format ( w_last, root.winfo_width ( ), h_last, root.winfo_height ( ) ) )
-	#if e is not None :
-	#	print ( '{:d} vs {:d} vs {:d}\t{:d} vs {:d} vs {:d}'.format ( w_last, e.width, root.winfo_width ( ), h_last, e.height, root.winfo_height ( ) ) )
-	#	print ( '{:d} - {:d} = {:d}'.format ( int ( e.width ), w_last, int ( e.width ) - w_last ) )
-	#	print ( '{:d} - {:d} = {:d}'.format ( int ( e.height ), h_last, int ( e.height ) - h_last ) )
-	#	if ( int ( e.width ) != w_last ) or ( int ( e.height ) != h_last ) :
-	#		print ( '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n' )
 
 def on_configure ( event ) :
 	global w_last, h_last
